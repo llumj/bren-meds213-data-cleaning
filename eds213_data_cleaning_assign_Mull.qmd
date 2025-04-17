@@ -1,0 +1,147 @@
+---
+title: "Assignment 2 Cleaning"
+format: html
+editor: visual
+author: Joshua Mull
+date: 04/16/2025
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#| message: false  
+
+# Libraries
+library(tidyverse)
+
+# file names
+datadir_raw <- file.path("data","raw")
+
+datadir_processed <- file.path("data", "processed/")
+
+species_file <- "ASDN_Daily_species.csv"
+
+snowsurvey_file <- "ASDN_Snow_survey.csv"
+```
+
+### Data Exploration
+
+Import the snow survey
+
+```{r}
+# Import the species
+snowsurvey_csv <- read_csv(file.path(datadir_raw, snowsurvey_file))
+
+glimpse(snowsurvey_csv)
+
+```
+
+Character is where we would expect integer. Process to convert the Snow, Water and Land to the correct type
+
+```{r}
+# Check the unique values in the Snow_cover column
+snowsurvey_csv %>%
+  count(Snow_cover)
+```
+
+```{r}
+# Identify non-numeric entries in Snow_cover column by attempting numeric conversion and filtering for NA
+snowsurvey_csv %>% 
+  count(Snow_cover) %>%
+  filter(is.na(as.numeric(Snow_cover)))
+
+# Make a copy and deal with the special characters
+snowsurvey_fixed <- snowsurvey_csv
+
+snowsurvey_fixed[snowsurvey_fixed == c(".", "-", "n/a", 'unk')] <- NA
+
+# Make <1 = 0 instead of NA
+snowsurvey_fixed[snowsurvey_fixed == "<1"] <- "0"
+```
+
+Now test to see if we only have NA's in the column 
+```{r}
+# Recheck for non-numeric entries in Snow_cover after replacements
+snowsurvey_fixed %>%
+  count(Snow_cover) %>%
+  filter(is.na(as.numeric(Snow_cover)))
+```
+
+Now transform the Snow_cover column to numeric 
+```{r}
+# Convert the snow cover column to numeric 
+snowsurvey_fixed <- snowsurvey_csv %>% 
+  mutate(Snow_cover = as.numeric(Snow_cover))
+```
+
+Do the same for land and water 
+```{r}
+# Check the values for both 
+snowsurvey_fixed %>%
+  count(Water_cover)
+
+snowsurvey_fixed %>%
+  count(Land_cover)
+
+```
+
+Look at the non numeric
+```{r}
+# see which values are non numeric for the water and land cover columns 
+snowsurvey_fixed %>% 
+  count(Water_cover) %>%
+  filter(is.na(as.numeric(Water_cover)))
+
+snowsurvey_fixed %>% 
+  count(Land_cover) %>%
+  filter(is.na(as.numeric(Land_cover)))
+```
+
+Transform each the columns to numeric
+```{r}
+# transform each column to numeric just like the snow columnn
+snowsurvey_fixed <- snowsurvey_fixed %>% 
+  mutate(Land_cover = as.numeric(Land_cover))
+
+snowsurvey_fixed <- snowsurvey_fixed %>%
+  mutate(Water_cover = as.numeric(Water_cover))
+
+glimpse(snowsurvey_fixed)
+```
+
+Check to make sure percent falls between 0 and 100
+```{r}
+# Check for values that are greater than 100% or are negative %
+snowsurvey_fixed %>% 
+  filter(Water_cover > 100 | Water_cover < 0) %>% 
+  View()
+
+snowsurvey_fixed %>% 
+  filter(Land_cover > 100 | Land_cover < 0) %>% 
+  View()
+```
+
+Set values above 100 and below 0 to NA
+
+```{r}
+# Set those values to NA because the cannot be true 
+snowsurvey_fixed <- snowsurvey_fixed %>% 
+  mutate(Land_cover = ifelse(Land_cover > 100, NA, Land_cover))
+
+snowsurvey_fixed <- snowsurvey_fixed %>% 
+  mutate(Land_cover = ifelse(Water_cover > 100, NA, Water_cover))
+
+# also include the snow column from lecture 
+snowsurvey_fixed <- snowsurvey_fixed %>% 
+  mutate(Snow_cover = ifelse(Snow_cover > 100, NA, Snow_cover))
+```
+
+Write to a csv file 
+```{r}
+# check if the folder exists
+dir.create(datadir_processed, showWarnings = FALSE)
+
+# write the file
+write_csv(snowsurvey_fixed, file.path(datadir_processed, "all_cover_fixed_Mull.csv"))
+```
+
